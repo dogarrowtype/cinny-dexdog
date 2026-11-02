@@ -7,7 +7,10 @@ import { style } from '@vanilla-extract/css';
 // enhancement script's ".csd-box img/video { object-fit: contain }").
 export const BiggerMediaBox = style({
   selectors: {
-    '& img, & video': {
+    '& img': {
+      objectFit: 'contain',
+    },
+    '& video': {
       objectFit: 'contain',
     },
   },
