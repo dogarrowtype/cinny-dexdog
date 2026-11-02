@@ -1,6 +1,6 @@
 {
   "name": "cinny",
-  "version": "4.12.8-dexdog.2",
+  "version": "4.12.8-dexdog.3",
   "description": "Yet another matrix client",
   "main": "index.js",
   "type": "module",

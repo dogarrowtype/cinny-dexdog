@@ -32,6 +32,7 @@ import { FileHeader, FileDownloadButton } from './FileHeader';
 import { MediaActions } from './MediaActions';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
+import * as msgTypeCss from './MsgTypeRenderers.css';
 
 export function MBadEncrypted() {
   return (
@@ -238,6 +239,7 @@ export function MImage({ content, renderImageContent, outlined, mEventId }: MIma
     <Attachment outlined={outlined} style={biggerAttachmentStyle}>
       <AttachmentBox
         ref={mediaRef}
+        className={biggerMedia ? msgTypeCss.BiggerMediaBox : undefined}
         style={
           biggerBoxStyle ?? {
             height: toRem(height < 48 ? 48 : height),
@@ -349,6 +351,7 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined, mE
       </AttachmentHeader>
       <AttachmentBox
         ref={mediaRef}
+        className={biggerMedia ? msgTypeCss.BiggerMediaBox : undefined}
         style={
           biggerBoxStyle ?? {
             height: toRem(height < 48 ? 48 : height),
