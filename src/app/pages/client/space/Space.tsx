@@ -55,7 +55,13 @@ import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMappe
 import { useRoomName } from '../../../hooks/useRoomMeta';
 import { useSpaceJoinedHierarchy } from '../../../hooks/useSpaceHierarchy';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
-import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
+import {
+  PageNav,
+  PageNavContent,
+  PageNavHeader,
+  SidebarResizeHandle,
+  useSidebarResize,
+} from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRecursiveChildScopeFactory, useSpaceChildren } from '../../../state/hooks/roomList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
@@ -436,11 +442,14 @@ export function Space() {
     closedCategories.has(categoryId)
   );
 
+  const sidebar = useSidebarResize();
+
   const getToLink = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(mx, roomId));
 
   return (
-    <PageNav>
+    <PageNav style={sidebar.navStyle} data-enh-sidebar-compact={sidebar.compact || undefined}>
+      <SidebarResizeHandle />
       <SpaceHeader />
       <PageNavContent scrollRef={scrollRef}>
         <Box direction="Column" gap="300">

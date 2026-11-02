@@ -7,11 +7,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useAtom, useAtomValue } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventType, IContent, MsgType, RelationType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
-import { Transforms, Editor } from 'slate';
+import { Transforms, Editor, Node } from 'slate';
 import {
   Box,
   Dialog,
@@ -132,6 +133,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
+    const [captionOnSend] = useSetting(settingsAtom, 'enhCaptionOnSend');
+    const captionDraftRef = useRef<{ draft: Node[]; text: string } | null>(null);
     const direct = useIsDirectRoom();
     const commands = useCommands(mx, room);
     const emojiBtnRef = useRef<HTMLButtonElement>(null);
@@ -171,8 +174,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms: Room[] = useImagePackRooms(roomId, roomToParents);
 
     const [toolbar, setToolbar] = useSetting(settingsAtom, 'editorToolbar');
+    const [mergePickerButtons] = useSetting(settingsAtom, 'enhMergePickerButtons');
+    const [pickerFill] = useSetting(settingsAtom, 'enhPickerFill');
+    const [pickerGap] = useSetting(settingsAtom, 'enhPickerGap');
+    const [pickerMaxWidth] = useSetting(settingsAtom, 'enhPickerMaxWidth');
+    const [pickerEmojiSize] = useSetting(settingsAtom, 'enhPickerEmojiSize');
+    const [shiftDown, setShiftDown] = useState(false);
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<AutocompletePrefix>>();
+
+    useEffect(() => {
+      const handleKey = (evt: KeyboardEvent) => {
+        if (evt.key === 'Shift') setShiftDown(evt.type === 'keydown');
+      };
+      window.addEventListener('keydown', handleKey);
+      window.addEventListener('keyup', handleKey);
+      return () => {
+        window.removeEventListener('keydown', handleKey);
+        window.removeEventListener('keyup', handleKey);
+      };
+    }, []);
 
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
 
@@ -276,27 +297,77 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     };
 
     const handleSendUpload = async (uploads: UploadSuccess[]) => {
+      // A captured caption draft only goes out with the plain single-upload
+      // case; on any failure restore it so the text is never lost.
+      const captionFor = captionDraftRef.current;
+      captionDraftRef.current = null;
+      const caption = captionFor && uploads.length === 1 ? captionFor.text : undefined;
+
+      const restoreCaptionDraft = () => {
+        if (captionFor) Transforms.insertFragment(editor, captionFor.draft);
+      };
+
       const contentsPromises = uploads.map(async (upload) => {
         const fileItem = selectedFiles.find((f) => f.file === upload.file);
         if (!fileItem) throw new Error('Broken upload');
 
         if (fileItem.file.type.startsWith('image')) {
-          return getImageMsgContent(mx, fileItem, upload.mxc);
+          return getImageMsgContent(mx, fileItem, upload.mxc, caption);
         }
         if (fileItem.file.type.startsWith('video')) {
-          return getVideoMsgContent(mx, fileItem, upload.mxc);
+          return getVideoMsgContent(mx, fileItem, upload.mxc, caption);
         }
         if (fileItem.file.type.startsWith('audio')) {
-          return getAudioMsgContent(fileItem, upload.mxc);
+          return getAudioMsgContent(fileItem, upload.mxc, caption);
         }
-        return getFileMsgContent(fileItem, upload.mxc);
+        return getFileMsgContent(fileItem, upload.mxc, caption);
       });
       handleCancelUpload(uploads);
       const contents = fulfilledPromiseSettledResult(await Promise.allSettled(contentsPromises));
+      if (caption) {
+        if (contents.length === 1) {
+          try {
+            await mx.sendMessage(roomId, contents[0] as any);
+          } catch (error) {
+            console.error(error);
+            restoreCaptionDraft();
+          }
+        } else {
+          restoreCaptionDraft();
+        }
+        return;
+      }
+      if (captionFor) restoreCaptionDraft();
       contents.forEach((content) => mx.sendMessage(roomId, content as any));
     };
 
     const submit = useCallback(() => {
+      // Caption-on-send: a single non-spoiler upload plus a non-empty plain
+      // draft goes out as one event with the draft text as the caption
+      // (body). Bail to the stock two-message flow on: spoiler toggle on,
+      // empty draft, a leading command, an active reply draft, or anything
+      // other than exactly one queued upload.
+      const captionTextCandidate = toPlainText(editor.children, isMarkdown).trim();
+      const captionEligible =
+        captionOnSend &&
+        captionTextCandidate !== '' &&
+        selectedFiles.length === 1 &&
+        !selectedFiles[0].metadata.markedAsSpoiler &&
+        !replyDraft &&
+        !getBeginCommand(editor);
+
+      if (captionEligible) {
+        captionDraftRef.current = {
+          draft: JSON.parse(JSON.stringify(editor.children)) as Node[],
+          text: captionTextCandidate,
+        };
+        resetEditor(editor);
+        resetEditorHistory(editor);
+        uploadBoardHandlers.current?.handleSend();
+        sendTypingStatus(false);
+        return;
+      }
+
       uploadBoardHandlers.current?.handleSend();
 
       const commandName = getBeginCommand(editor);
@@ -377,7 +448,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       resetEditorHistory(editor);
       setReplyDraft(undefined);
       sendTypingStatus(false);
-    }, [mx, roomId, editor, replyDraft, sendTypingStatus, setReplyDraft, isMarkdown, commands]);
+    }, [
+      mx,
+      roomId,
+      editor,
+      replyDraft,
+      sendTypingStatus,
+      setReplyDraft,
+      isMarkdown,
+      commands,
+      selectedFiles,
+      captionOnSend,
+    ]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {
@@ -603,71 +685,135 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
               </IconButton>
               <UseStateProvider initial={undefined}>
-                {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => (
-                  <PopOut
-                    offset={16}
-                    alignOffset={-44}
-                    position="Top"
-                    align="End"
-                    anchor={
-                      emojiBoardTab === undefined
-                        ? undefined
-                        : emojiBtnRef.current?.getBoundingClientRect() ?? undefined
-                    }
-                    content={
-                      <EmojiBoard
-                        tab={emojiBoardTab}
-                        onTabChange={setEmojiBoardTab}
-                        imagePackRooms={imagePackRooms}
-                        returnFocusOnDeactivate={false}
-                        onEmojiSelect={handleEmoticonSelect}
-                        onCustomEmojiSelect={handleEmoticonSelect}
-                        onStickerSelect={handleStickerSelect}
-                        requestClose={() => {
-                          setEmojiBoardTab((t) => {
-                            if (t) {
-                              if (!mobileOrTablet()) ReactEditor.focus(editor);
-                              return undefined;
-                            }
-                            return t;
-                          });
-                        }}
-                      />
-                    }
-                  >
-                    {!hideStickerBtn && (
-                      <IconButton
-                        aria-pressed={emojiBoardTab === EmojiBoardTab.Sticker}
-                        onClick={() => setEmojiBoardTab(EmojiBoardTab.Sticker)}
-                        variant="SurfaceVariant"
-                        size="300"
-                        radii="300"
-                      >
-                        <Icon
-                          src={Icons.Sticker}
-                          filled={emojiBoardTab === EmojiBoardTab.Sticker}
-                        />
-                      </IconButton>
-                    )}
-                    <IconButton
-                      ref={emojiBtnRef}
-                      aria-pressed={
-                        hideStickerBtn ? !!emojiBoardTab : emojiBoardTab === EmojiBoardTab.Emoji
+                {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => {
+                  const closePicker = () => {
+                    setEmojiBoardTab((t) => {
+                      if (t) {
+                        if (!mobileOrTablet()) ReactEditor.focus(editor);
+                        return undefined;
                       }
-                      onClick={() => setEmojiBoardTab(EmojiBoardTab.Emoji)}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
-                    >
-                      <Icon
-                        src={Icons.Smile}
-                        filled={
-                          hideStickerBtn ? !!emojiBoardTab : emojiBoardTab === EmojiBoardTab.Emoji
+                      return t;
+                    });
+                  };
+                  const renderBoard = (fillMode: boolean) => (
+                    <EmojiBoard
+                      tab={emojiBoardTab}
+                      onTabChange={setEmojiBoardTab}
+                      imagePackRooms={imagePackRooms}
+                      returnFocusOnDeactivate={false}
+                      onEmojiSelect={handleEmoticonSelect}
+                      onCustomEmojiSelect={handleEmoticonSelect}
+                      onStickerSelect={handleStickerSelect}
+                      requestClose={closePicker}
+                      fill={fillMode}
+                      emojiScale={pickerEmojiSize > 0 ? pickerEmojiSize / 48 : undefined}
+                    />
+                  );
+
+                  // Picker fill: anchor the board to the scrollback rectangle
+                  // at open time (drop-zone container minus this composer),
+                  // instead of the composer button.
+                  let paneRect: DOMRect | undefined;
+                  if (pickerFill && emojiBoardTab !== undefined) {
+                    const container = fileDropContainerRef.current?.getBoundingClientRect();
+                    const ownTop =
+                      ref && typeof ref !== 'function'
+                        ? ref.current?.getBoundingClientRect().top
+                        : undefined;
+                    if (container) {
+                      paneRect = new DOMRect(
+                        container.left,
+                        container.top,
+                        container.width,
+                        (ownTop ?? container.bottom) - container.top
+                      );
+                    }
+                  }
+                  const gapPx = Math.max(0, pickerGap);
+                  const fillStyle: React.CSSProperties | undefined = paneRect
+                    ? {
+                        position: 'fixed',
+                        left: paneRect.left + gapPx,
+                        top: paneRect.top + gapPx,
+                        width: Math.min(
+                          paneRect.width - 2 * gapPx,
+                          pickerMaxWidth > 0 ? pickerMaxWidth : Number.POSITIVE_INFINITY
+                        ),
+                        height: paneRect.height - 2 * gapPx,
+                        zIndex: config.zIndex.Max,
+                      }
+                    : undefined;
+
+                  const emojiPressed =
+                    mergePickerButtons || hideStickerBtn
+                      ? !!emojiBoardTab
+                      : emojiBoardTab === EmojiBoardTab.Emoji;
+
+                  return (
+                    <>
+                      <PopOut
+                        offset={16}
+                        alignOffset={-44}
+                        position="Top"
+                        align="End"
+                        anchor={
+                          pickerFill || emojiBoardTab === undefined
+                            ? undefined
+                            : emojiBtnRef.current?.getBoundingClientRect() ?? undefined
                         }
-                      />
-                    </IconButton>
-                  </PopOut>
-                )}
+                        content={pickerFill ? <div /> : renderBoard(false)}
+                      >
+                        {!hideStickerBtn && !mergePickerButtons && (
+                          <IconButton
+                            aria-pressed={emojiBoardTab === EmojiBoardTab.Sticker}
+                            onClick={() => setEmojiBoardTab(EmojiBoardTab.Sticker)}
+                            variant="SurfaceVariant"
+                            size="300"
+                            radii="300"
+                          >
+                            <Icon
+                              src={Icons.Sticker}
+                              filled={emojiBoardTab === EmojiBoardTab.Sticker}
+                            />
+                          </IconButton>
+                        )}
+                        <IconButton
+                          ref={emojiBtnRef}
+                          aria-pressed={emojiPressed}
+                          onClick={(evt: React.MouseEvent) =>
+                            setEmojiBoardTab(
+                              mergePickerButtons && (evt.shiftKey || shiftDown)
+                                ? EmojiBoardTab.Sticker
+                                : EmojiBoardTab.Emoji
+                            )
+                          }
+                          onContextMenu={
+                            mergePickerButtons
+                              ? (evt: React.MouseEvent) => {
+                                  evt.preventDefault();
+                                  setEmojiBoardTab(EmojiBoardTab.Sticker);
+                                }
+                              : undefined
+                          }
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                        >
+                          <Icon
+                            src={
+                              mergePickerButtons && (shiftDown || emojiBoardTab === EmojiBoardTab.Sticker)
+                                ? Icons.Sticker
+                                : Icons.Smile
+                            }
+                            filled={emojiPressed}
+                          />
+                        </IconButton>
+                      </PopOut>
+                      {fillStyle &&
+                        createPortal(<div style={fillStyle}>{renderBoard(true)}</div>, document.body)}
+                    </>
+                  );
+                }}
               </UseStateProvider>
               <IconButton onClick={submit} variant="SurfaceVariant" size="300" radii="300">
                 <Icon src={Icons.Send} />

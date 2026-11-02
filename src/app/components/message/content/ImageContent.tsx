@@ -31,10 +31,12 @@ import { decryptFile, downloadEncryptedMedia, mxcUrlToHttp } from '../../../util
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { ModalWide } from '../../../styles/Modal.css';
 import { validBlurHash } from '../../../utils/blurHash';
+import { MediaEventContent } from '../../../utils/saneDownload';
 
 type RenderViewerProps = {
   src: string;
   alt: string;
+  content?: MediaEventContent;
   requestClose: () => void;
 };
 type RenderImageProps = {
@@ -48,6 +50,7 @@ type RenderImageProps = {
 };
 export type ImageContentProps = {
   body: string;
+  filename?: string;
   mimeType?: string;
   url: string;
   info?: IImageInfo;
@@ -63,6 +66,7 @@ export const ImageContent = as<'div', ImageContentProps>(
     {
       className,
       body,
+      filename,
       mimeType,
       url,
       info,
@@ -137,6 +141,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                   {renderViewer({
                     src: srcState.data,
                     alt: body,
+                    content: { filename, body, info },
                     requestClose: () => setViewer(false),
                   })}
                 </Modal>

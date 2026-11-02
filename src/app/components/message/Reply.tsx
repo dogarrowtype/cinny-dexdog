@@ -1,9 +1,9 @@
 import { Box, Icon, Icons, Text, as, color, toRem } from 'folds';
-import { EventTimelineSet, Room } from 'matrix-js-sdk';
+import { EventTimelineSet, MsgType, Room, EventType } from 'matrix-js-sdk';
 import React, { MouseEventHandler, ReactNode, useCallback, useMemo } from 'react';
 import classNames from 'classnames';
 import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
-import { getMxIdLocalPart } from '../../utils/matrix';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { LinePlaceholder } from './placeholder';
 import { randomNumberBetween } from '../../utils/common';
 import * as css from './Reply.css';
@@ -12,6 +12,10 @@ import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
 import { useRoomEvent } from '../../hooks/useRoomEvent';
 import colorMXID from '../../../util/colorMXID';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -77,6 +81,11 @@ export const Reply = as<'div', ReplyProps>(
     },
     ref
   ) => {
+    const mx = useMatrixClient();
+    const useAuthentication = useMediaAuthentication();
+    const [replyThumbs] = useSetting(settingsAtom, 'enhReplyThumbs');
+    const [replyThumbSize] = useSetting(settingsAtom, 'enhReplyThumbSize');
+
     const placeholderWidth = useMemo(() => randomNumberBetween(40, 400), []);
     const getFromLocalTimeline = useCallback(
       () => timelineSet?.findEventById(replyEventId),
@@ -85,6 +94,33 @@ export const Reply = as<'div', ReplyProps>(
     const replyEvent = useRoomEvent(room, replyEventId, getFromLocalTimeline);
 
     const { body } = replyEvent?.getContent() ?? {};
+
+    // Reply thumbnail: quotes of pictures show a small server-generated
+    // thumbnail in front of the quoted text. Silent fallback to no thumbnail
+    // (missing/scrolled-out event, encrypted-only content, weird content).
+    const replyThumb = useMemo(() => {
+      if (!replyThumbs || !replyEvent) return undefined;
+      const content = replyEvent.getContent();
+      const isMedia =
+        replyEvent.getType() === EventType.Sticker ||
+        content.msgtype === MsgType.Image ||
+        content.msgtype === MsgType.Video;
+      if (!isMedia) return undefined;
+      // Encrypted rooms carry only content.file; keep it simple and skip.
+      if (typeof content.url !== 'string') return undefined;
+      const displayPx = Math.max(12, Math.min(200, replyThumbSize || 36));
+      // Ask for roughly twice the displayed size so it stays crisp on hidpi.
+      // The cheap tier is square; 128 is the ceiling worth asking for.
+      const want = displayPx <= 48 ? 96 : 128;
+      const url = mxcUrlToHttp(mx, content.url, useAuthentication, want, want, 'scale', false);
+      if (!url) return undefined;
+      const info = content.info as { w?: number; h?: number } | undefined;
+      const aspectRatio =
+        want > 96 && info && info.w && info.h && info.w > 0 && info.h > 0
+          ? `${info.w} / ${info.h}`
+          : '1 / 1';
+      return { url, displayPx, aspectRatio };
+    }, [mx, replyEvent, replyThumbs, replyThumbSize, useAuthentication]);
     const sender = replyEvent?.getSender();
     const powerTag = sender ? getMemberPowerTag?.(sender) : undefined;
     const tagColor = powerTag?.color ? accessibleTagColors?.get(powerTag.color) : undefined;
@@ -119,9 +155,25 @@ export const Reply = as<'div', ReplyProps>(
           onClick={onClick}
         >
           {replyEvent !== undefined ? (
-            <Text size="T300" truncate>
-              {badEncryption ? <MessageBadEncryptedContent /> : bodyJSX}
-            </Text>
+            <Box alignItems="Center" gap="100" style={{ minWidth: 0 }}>
+              {replyThumb && (
+                <img
+                  src={replyThumb.url}
+                  alt=""
+                  loading="lazy"
+                  style={{
+                    display: 'block',
+                    height: toRem(replyThumb.displayPx),
+                    aspectRatio: replyThumb.aspectRatio,
+                    borderRadius: '4px',
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <Text size="T300" truncate>
+                {badEncryption ? <MessageBadEncryptedContent /> : bodyJSX}
+              </Text>
+            </Box>
           ) : (
             <LinePlaceholder
               style={{

@@ -1,5 +1,5 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import FileSaver from 'file-saver';
 import classNames from 'classnames';
 import { Box, Chip, Header, Icon, IconButton, Icons, Text, as } from 'folds';
@@ -7,19 +7,50 @@ import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
 import { usePan } from '../../hooks/usePan';
 import { downloadMedia } from '../../utils/matrix';
+import { MediaEventContent, saveMatrixMedia } from '../../utils/saneDownload';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 
 export type ImageViewerProps = {
   alt: string;
   src: string;
+  content?: MediaEventContent;
   requestClose: () => void;
 };
 
 export const ImageViewer = as<'div', ImageViewerProps>(
-  ({ className, alt, src, requestClose, ...props }, ref) => {
+  ({ className, alt, src, content, requestClose, ...props }, ref) => {
+    const mx = useMatrixClient();
+    const useAuthentication = useMediaAuthentication();
+    const [saneFilenames] = useSetting(settingsAtom, 'enhSaneFilenames');
+    const [maxBaseName] = useSetting(settingsAtom, 'enhMaxBaseName');
+    const [lightboxZoom] = useSetting(settingsAtom, 'enhLightboxZoom');
+    const [hideLightboxDownload] = useSetting(settingsAtom, 'enhHideLightboxDownload');
     const { zoom, zoomIn, zoomOut, setZoom } = useZoom(0.2);
     const { pan, cursor, onMouseDown } = usePan(zoom !== 1);
 
+    const initialZoomApplied = useRef(false);
+    useEffect(() => {
+      if (!initialZoomApplied.current && lightboxZoom > 100) {
+        initialZoomApplied.current = true;
+        setZoom(lightboxZoom / 100);
+      }
+    }, [lightboxZoom, setZoom]);
+
     const handleDownload = async () => {
+      if (saneFilenames && content) {
+        await saveMatrixMedia({
+          mx,
+          src,
+          content,
+          altText: alt,
+          useAuthentication,
+          maxBaseName,
+        });
+        return;
+      }
       const fileContent = await downloadMedia(src);
       FileSaver.saveAs(fileContent, alt);
     };
@@ -64,14 +95,16 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             >
               <Icon size="50" src={Icons.Plus} />
             </IconButton>
-            <Chip
-              variant="Primary"
-              onClick={handleDownload}
-              radii="300"
-              before={<Icon size="50" src={Icons.Download} />}
-            >
-              <Text size="B300">Download</Text>
-            </Chip>
+            {!hideLightboxDownload && (
+              <Chip
+                variant="Primary"
+                onClick={handleDownload}
+                radii="300"
+                before={<Icon size="50" src={Icons.Download} />}
+              >
+                <Text size="B300">Download</Text>
+              </Chip>
+            )}
           </Box>
         </Header>
         <Box

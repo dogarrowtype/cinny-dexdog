@@ -12,6 +12,9 @@ import {
   downloadMedia,
   mxcUrlToHttp,
 } from '../../utils/matrix';
+import { MediaEventContent, saveMatrixMedia } from '../../utils/saneDownload';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 
 const badgeStyles = { maxWidth: toRem(100) };
 
@@ -20,13 +23,34 @@ type FileDownloadButtonProps = {
   url: string;
   mimeType: string;
   encInfo?: EncryptedAttachmentInfo;
+  content?: MediaEventContent;
 };
-export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDownloadButtonProps) {
+export function FileDownloadButton({
+  filename,
+  url,
+  mimeType,
+  encInfo,
+  content,
+}: FileDownloadButtonProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const [saneFilenames] = useSetting(settingsAtom, 'enhSaneFilenames');
+  const [maxBaseName] = useSetting(settingsAtom, 'enhMaxBaseName');
 
   const [downloadState, download] = useAsyncCallback(
     useCallback(async () => {
+      if (saneFilenames && content) {
+        await saveMatrixMedia({
+          mx,
+          src: url,
+          mimeType,
+          encInfo,
+          content,
+          useAuthentication,
+          maxBaseName,
+        });
+        return '';
+      }
       const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
       if (!mediaUrl) throw new Error('Invalid media URL');
       const fileContent = encInfo
@@ -36,7 +60,17 @@ export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDow
       const fileURL = URL.createObjectURL(fileContent);
       FileSaver.saveAs(fileURL, filename);
       return fileURL;
-    }, [mx, url, useAuthentication, mimeType, encInfo, filename])
+    }, [
+      mx,
+      url,
+      useAuthentication,
+      mimeType,
+      encInfo,
+      filename,
+      content,
+      saneFilenames,
+      maxBaseName,
+    ])
   );
 
   const downloading = downloadState.status === AsyncStatus.Loading;

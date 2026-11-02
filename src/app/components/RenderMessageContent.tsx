@@ -35,6 +35,7 @@ import { IImageContent } from '../../types/matrix/common';
 type RenderMessageContentProps = {
   displayName: string;
   msgType: string;
+  mEventId?: string;
   ts: number;
   edited?: boolean;
   getContent: <T>() => T;
@@ -48,6 +49,7 @@ type RenderMessageContentProps = {
 export function RenderMessageContent({
   displayName,
   msgType,
+  mEventId,
   ts,
   edited,
   getContent,
@@ -96,7 +98,8 @@ export function RenderMessageContent({
     <>
       <MFile
         content={getContent()}
-        renderFileContent={({ body, mimeType, info, encInfo, url }) => (
+        mEventId={mEventId}
+        renderFileContent={({ body, content, mimeType, info, encInfo, url }) => (
           <FileContent
             body={body}
             mimeType={mimeType}
@@ -119,7 +122,14 @@ export function RenderMessageContent({
               />
             )}
           >
-            <DownloadFile body={body} mimeType={mimeType} url={url} encInfo={encInfo} info={info} />
+            <DownloadFile
+              body={body}
+              content={content}
+              mimeType={mimeType}
+              url={url}
+              encInfo={encInfo}
+              info={info}
+            />
           </FileContent>
         )}
         outlined={outlineAttachment}
@@ -188,6 +198,7 @@ export function RenderMessageContent({
       <>
         <MImage
           content={getContent()}
+          mEventId={mEventId}
           renderImageContent={(props) => (
             <ImageContent
               {...props}
@@ -208,6 +219,7 @@ export function RenderMessageContent({
       <>
         <MVideo
           content={getContent()}
+          mEventId={mEventId}
           renderAsFile={renderFile}
           renderVideoContent={({ body, info, ...props }) => (
             <VideoContent

@@ -8,12 +8,13 @@ export const EmojiBoardLayout = as<
   {
     header: ReactNode;
     sidebar?: ReactNode;
+    fill?: boolean;
     children: ReactNode;
   }
->(({ className, header, sidebar, children, ...props }, ref) => (
+>(({ className, header, sidebar, fill, children, ...props }, ref) => (
   <Box
     display="InlineFlex"
-    className={classNames(css.Base, className)}
+    className={classNames(css.Base({ fill }), className)}
     direction="Row"
     {...props}
     ref={ref}

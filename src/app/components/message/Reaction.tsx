@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text, as } from 'folds';
+import { Box, Text, as, toRem } from 'folds';
 import classNames from 'classnames';
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import * as css from './Reaction.css';
@@ -14,8 +14,10 @@ export const Reaction = as<
     count: number;
     reaction: string;
     useAuthentication?: boolean;
+    /** Custom emoji size in px; 0/undefined keeps the stock 15px (T400). */
+    emojiSize?: number;
   }
->(({ className, mx, count, reaction, useAuthentication, ...props }, ref) => (
+>(({ className, mx, count, reaction, useAuthentication, emojiSize, ...props }, ref) => (
   <Box
     as="button"
     className={classNames(css.Reaction, className)}
@@ -25,7 +27,16 @@ export const Reaction = as<
     {...props}
     ref={ref}
   >
-    <Text className={css.ReactionText} as="span" size="T400">
+    <Text
+      className={css.ReactionText}
+      as="span"
+      size="T400"
+      style={
+        emojiSize
+          ? { fontSize: toRem(emojiSize), lineHeight: toRem(emojiSize) }
+          : undefined
+      }
+    >
       {reaction.startsWith('mxc://') ? (
         <img
           className={css.ReactionImg}

@@ -362,6 +362,8 @@ type EmojiBoardProps = {
   onStickerSelect?: (mxc: string, shortcode: string, label: string) => void;
   allowTextCustomEmoji?: boolean;
   addToRecentEmoji?: boolean;
+  fill?: boolean;
+  emojiScale?: number;
 };
 
 export function EmojiBoard({
@@ -375,6 +377,8 @@ export function EmojiBoard({
   onStickerSelect,
   allowTextCustomEmoji,
   addToRecentEmoji = true,
+  fill,
+  emojiScale,
 }: EmojiBoardProps) {
   const mx = useMatrixClient();
 
@@ -503,6 +507,7 @@ export function EmojiBoard({
       }}
     >
       <EmojiBoardLayout
+        fill={fill}
         header={
           <Box direction="Column" gap="200">
             {onTabChange && <EmojiBoardTabs tab={tab} onTabChange={onTabChange} />}
@@ -531,7 +536,12 @@ export function EmojiBoard({
           )
         }
       >
-        <Box grow="Yes">
+        <Box
+          grow="Yes"
+          // A >0 emoji size override scales only the emoji tiles, never the
+          // sticker tiles. zoom scales the glyph font-size along with the tile.
+          style={emojiScale && emojiScale !== 1 && emojiTab ? { zoom: emojiScale } : undefined}
+        >
           <EmojiGroupHolder
             key={tab}
             contentScrollRef={contentScrollRef}

@@ -36,6 +36,9 @@ import {
 } from '../../../utils/matrix';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { ModalWide } from '../../../styles/Modal.css';
+import { MediaEventContent, resolveFilename } from '../../../utils/saneDownload';
+import { useSetting } from '../../../state/hooks/settings';
+import { settingsAtom } from '../../../state/settings';
 
 const renderErrorButton = (retry: () => void, text: string) => (
   <TooltipProvider
@@ -244,14 +247,17 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
 
 export type DownloadFileProps = {
   body: string;
+  content?: MediaEventContent;
   mimeType: string;
   url: string;
   info: IFileInfo;
   encInfo?: EncryptedAttachmentInfo;
 };
-export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFileProps) {
+export function DownloadFile({ body, content, mimeType, url, info, encInfo }: DownloadFileProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const [saneFilenames] = useSetting(settingsAtom, 'enhSaneFilenames');
+  const [maxBaseName] = useSetting(settingsAtom, 'enhMaxBaseName');
 
   const [downloadState, download] = useAsyncCallback(
     useCallback(async () => {
@@ -262,9 +268,18 @@ export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFil
         : await downloadMedia(mediaUrl);
 
       const fileURL = URL.createObjectURL(fileContent);
-      FileSaver.saveAs(fileURL, body);
-      return fileURL;
-    }, [mx, url, useAuthentication, mimeType, encInfo, body])
+      let filename = body;
+      if (saneFilenames && content) {
+        const headBytes = new Uint8Array(await fileContent.slice(0, 16).arrayBuffer());
+        filename = resolveFilename(content, {
+          headBytes,
+          blobType: fileContent.type,
+          maxBaseName,
+        });
+      }
+      FileSaver.saveAs(fileURL, filename);
+      return { fileURL, filename };
+    }, [mx, url, useAuthentication, mimeType, encInfo, body, content, saneFilenames, maxBaseName])
   );
 
   return downloadState.status === AsyncStatus.Error ? (
@@ -277,7 +292,7 @@ export function DownloadFile({ body, mimeType, url, info, encInfo }: DownloadFil
       size="400"
       onClick={() =>
         downloadState.status === AsyncStatus.Success
-          ? FileSaver.saveAs(downloadState.data, body)
+          ? FileSaver.saveAs(downloadState.data.fileURL, downloadState.data.filename)
           : download()
       }
       disabled={downloadState.status === AsyncStatus.Loading}

@@ -1098,6 +1098,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
               <RenderMessageContent
                 displayName={senderDisplayName}
                 msgType={mEvent.getContent().msgtype ?? ''}
+                mEventId={mEventId}
                 ts={mEvent.getTs()}
                 edited={!!editedEvent}
                 getContent={getContent}
@@ -1181,6 +1182,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                   return (
                     <MSticker
                       content={mEvent.getContent()}
+                      mEventId={mEventId}
                       renderImageContent={(props) => (
                         <ImageContent
                           {...props}
@@ -1204,6 +1206,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       msgType={mEvent.getContent().msgtype ?? ''}
+                      mEventId={mEventId}
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}
                       getContent={getContent}
@@ -1282,6 +1285,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             ) : (
               <MSticker
                 content={mEvent.getContent()}
+                mEventId={mEventId}
                 renderImageContent={(props) => (
                   <ImageContent
                     {...props}

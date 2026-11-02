@@ -46,7 +46,7 @@ export function About({ requestClose }: AboutProps) {
                   <Box direction="Column" gap="100">
                     <Box gap="100" alignItems="End">
                       <Text size="H3">Cinny</Text>
-                      <Text size="T200">v4.12.8</Text>
+                      <Text size="T200">v4.12.8-dexdog.1</Text>
                     </Box>
                     <Text>Yet another matrix client.</Text>
                   </Box>
@@ -124,6 +124,12 @@ export function About({ requestClose }: AboutProps) {
                       paddingLeft: config.space.S400,
                     }}
                   >
+                    <li>
+                      <Text size="T300">
+                        This <b>cinny-dexdog</b> fork is maintained by <b>Dog</b>, with original
+                        contributions by <b>Dex</b>.
+                      </Text>
+                    </li>
                     <li>
                       <Text size="T300">
                         The{' '}

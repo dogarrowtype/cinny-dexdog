@@ -47,6 +47,43 @@ export interface Settings {
   dateFormatString: string;
 
   developerTools: boolean;
+
+  // Enhancements (ported from cinny-sane-downloader userscript)
+  enhSaneFilenames: boolean;
+  enhMediaButtons: boolean;
+  enhShowCopyButton: boolean;
+  enhIncludeVideo: boolean;
+  enhIncludeStickers: boolean;
+  enhIncludeFiles: boolean;
+  enhMinImageHeight: number;
+  enhMaxBaseName: number;
+  enhRememberDownloads: boolean;
+  enhDownloadMemoryDays: number;
+  enhSwoop: boolean;
+  enhSwoopStyle: 'shop' | 'shopSlide' | 'spiral';
+  enhSwoopHold: number;
+  enhSwoopFlightSpeed: number;
+  enhSwoopSpeed: number;
+  enhSwoopSize: number;
+  enhCaptionOnSend: boolean;
+  enhDragRescue: boolean;
+  enhBiggerMedia: boolean;
+  enhMediaMaxHeightVh: number;
+  enhUpscaleSmallMedia: boolean;
+  enhExpandStickers: boolean;
+  enhPickerFill: boolean;
+  enhPickerGap: number;
+  enhPickerMaxWidth: number;
+  enhPickerEmojiSize: number;
+  enhMergePickerButtons: boolean;
+  enhReplyThumbs: boolean;
+  enhReplyThumbSize: number;
+  enhLightboxZoom: number;
+  enhHideLightboxDownload: boolean;
+  enhSidebarResize: boolean;
+  enhSidebarWidth: number;
+  enhSidebarCompactAt: number;
+  enhReactionEmojiSize: number;
 }
 
 const defaultSettings: Settings = {
@@ -81,6 +118,42 @@ const defaultSettings: Settings = {
   dateFormatString: 'D MMM YYYY',
 
   developerTools: false,
+
+  enhSaneFilenames: true,
+  enhMediaButtons: true,
+  enhShowCopyButton: true,
+  enhIncludeVideo: true,
+  enhIncludeStickers: false,
+  enhIncludeFiles: false,
+  enhMinImageHeight: 64,
+  enhMaxBaseName: 96,
+  enhRememberDownloads: true,
+  enhDownloadMemoryDays: 0,
+  enhSwoop: false,
+  enhSwoopStyle: 'shop',
+  enhSwoopHold: 200,
+  enhSwoopFlightSpeed: 100,
+  enhSwoopSpeed: 100,
+  enhSwoopSize: 200,
+  enhCaptionOnSend: true,
+  enhDragRescue: true,
+  enhBiggerMedia: true,
+  enhMediaMaxHeightVh: 80,
+  enhUpscaleSmallMedia: false,
+  enhExpandStickers: false,
+  enhPickerFill: false,
+  enhPickerGap: 16,
+  enhPickerMaxWidth: 0,
+  enhPickerEmojiSize: 0,
+  enhMergePickerButtons: true,
+  enhReplyThumbs: true,
+  enhReplyThumbSize: 36,
+  enhLightboxZoom: 200,
+  enhHideLightboxDownload: true,
+  enhSidebarResize: true,
+  enhSidebarWidth: 0,
+  enhSidebarCompactAt: 200,
+  enhReactionEmojiSize: 0,
 };
 
 export const getSettings = () => {

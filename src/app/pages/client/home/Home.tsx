@@ -51,7 +51,13 @@ import { makeNavCategoryId } from '../../../state/closedNavCategories';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
-import { PageNav, PageNavHeader, PageNavContent } from '../../../components/page';
+import {
+  PageNav,
+  PageNavHeader,
+  PageNavContent,
+  SidebarResizeHandle,
+  useSidebarResize,
+} from '../../../components/page';
 import { useRoomsUnread } from '../../../state/hooks/unread';
 import { markAsRead } from '../../../utils/notifications';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
@@ -232,8 +238,11 @@ export function Home() {
     closedCategories.has(categoryId)
   );
 
+  const sidebar = useSidebarResize();
+
   return (
-    <PageNav>
+    <PageNav style={sidebar.navStyle} data-enh-sidebar-compact={sidebar.compact || undefined}>
+      <SidebarResizeHandle />
       <HomeHeader />
       {noRoomToDisplay ? (
         <HomeEmpty />

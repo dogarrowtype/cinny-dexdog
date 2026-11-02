@@ -1,4 +1,4 @@
-import React, { CSSProperties, ReactNode } from 'react';
+import React, { CSSProperties, ReactNode, useRef } from 'react';
 import { Box, Chip, Icon, Icons, Text, toRem } from 'folds';
 import { IContent } from 'matrix-js-sdk';
 import { JUMBO_EMOJI_REG, URL_REG } from '../../utils/regex';
@@ -29,6 +29,9 @@ import { FALLBACK_MIMETYPE, getBlobSafeMimeType } from '../../utils/mimeTypes';
 import { parseGeoUri, scaleYDimension } from '../../utils/common';
 import { Attachment, AttachmentBox, AttachmentContent, AttachmentHeader } from './attachment';
 import { FileHeader, FileDownloadButton } from './FileHeader';
+import { MediaActions } from './MediaActions';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 
 export function MBadEncrypted() {
   return (
@@ -188,24 +191,62 @@ type MImageProps = {
   content: IImageContent;
   renderImageContent: (props: RenderImageContentProps) => ReactNode;
   outlined?: boolean;
+  mEventId?: string;
 };
-export function MImage({ content, renderImageContent, outlined }: MImageProps) {
+export function MImage({ content, renderImageContent, outlined, mEventId }: MImageProps) {
+  const [mediaButtons] = useSetting(settingsAtom, 'enhMediaButtons');
+  const [minImageHeight] = useSetting(settingsAtom, 'enhMinImageHeight');
+  const [biggerMedia] = useSetting(settingsAtom, 'enhBiggerMedia');
+  const [mediaMaxHeightVh] = useSetting(settingsAtom, 'enhMediaMaxHeightVh');
+  const [upscaleSmallMedia] = useSetting(settingsAtom, 'enhUpscaleSmallMedia');
+  const mediaRef = useRef<HTMLDivElement>(null);
   const imgInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
   if (typeof mxcUrl !== 'string') {
     return <BrokenContent />;
   }
   const height = scaleYDimension(imgInfo?.w || 400, 400, imgInfo?.h || 400);
+  const showActions =
+    mediaButtons && (typeof imgInfo?.h !== 'number' || imgInfo.h >= minImageHeight);
+
+  // Bigger media: widen the attachment past the 400px column cap and let
+  // Cinny's own max-width:100% clamp it back, then size the box with the
+  // event's aspect ratio and a vh-height cap instead of the fixed 400px-wide
+  // height. Without upscaling, native dimensions are the ceiling.
+  const natW = imgInfo?.w;
+  const natH = imgInfo?.h;
+  let biggerBoxStyle: CSSProperties | undefined;
+  let biggerAttachmentStyle: CSSProperties | undefined;
+  if (biggerMedia) {
+    let maxWidth = '100%';
+    if (!upscaleSmallMedia && natW) maxWidth = `min(100%, ${natW}px)`;
+    biggerBoxStyle = {
+      width: 'auto',
+      height: 'auto',
+      maxWidth: '100%',
+      maxHeight: `${mediaMaxHeightVh}vh`,
+      aspectRatio: natW && natH ? `${natW} / ${natH}` : undefined,
+    };
+    biggerAttachmentStyle = {
+      width: '100vw',
+      maxWidth,
+      backgroundColor: 'transparent',
+    };
+  }
 
   return (
-    <Attachment outlined={outlined}>
+    <Attachment outlined={outlined} style={biggerAttachmentStyle}>
       <AttachmentBox
-        style={{
-          height: toRem(height < 48 ? 48 : height),
-        }}
+        ref={mediaRef}
+        style={
+          biggerBoxStyle ?? {
+            height: toRem(height < 48 ? 48 : height),
+          }
+        }
       >
         {renderImageContent({
           body: content.body || 'Image',
+          filename: content.filename,
           info: imgInfo,
           mimeType: imgInfo?.mimetype,
           url: mxcUrl,
@@ -214,6 +255,18 @@ export function MImage({ content, renderImageContent, outlined }: MImageProps) {
           spoilerReason: content[MATRIX_SPOILER_REASON_PROPERTY_NAME],
         })}
       </AttachmentBox>
+      {showActions && (
+        <MediaActions
+          mEventId={mEventId}
+          content={content}
+          mxcUrl={mxcUrl}
+          mimeType={imgInfo?.mimetype ?? FALLBACK_MIMETYPE}
+          encInfo={content.file}
+          altText={content.body}
+          mediaRef={mediaRef}
+          copyable
+        />
+      )}
     </Attachment>
   );
 }
@@ -232,8 +285,15 @@ type MVideoProps = {
   renderAsFile: () => ReactNode;
   renderVideoContent: (props: RenderVideoContentProps) => ReactNode;
   outlined?: boolean;
+  mEventId?: string;
 };
-export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: MVideoProps) {
+export function MVideo({ content, renderAsFile, renderVideoContent, outlined, mEventId }: MVideoProps) {
+  const [mediaButtons] = useSetting(settingsAtom, 'enhMediaButtons');
+  const [includeVideo] = useSetting(settingsAtom, 'enhIncludeVideo');
+  const [biggerMedia] = useSetting(settingsAtom, 'enhBiggerMedia');
+  const [mediaMaxHeightVh] = useSetting(settingsAtom, 'enhMediaMaxHeightVh');
+  const [upscaleSmallMedia] = useSetting(settingsAtom, 'enhUpscaleSmallMedia');
+  const mediaRef = useRef<HTMLDivElement>(null);
   const videoInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
   const safeMimeType = getBlobSafeMimeType(videoInfo?.mimetype ?? '');
@@ -249,8 +309,29 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
 
   const filename = content.filename ?? content.body ?? 'Video';
 
+  const natW = videoInfo.w;
+  const natH = videoInfo.h;
+  let biggerBoxStyle: CSSProperties | undefined;
+  let biggerAttachmentStyle: CSSProperties | undefined;
+  if (biggerMedia) {
+    let maxWidth = '100%';
+    if (!upscaleSmallMedia && natW) maxWidth = `min(100%, ${natW}px)`;
+    biggerBoxStyle = {
+      width: 'auto',
+      height: 'auto',
+      maxWidth: '100%',
+      maxHeight: `${mediaMaxHeightVh}vh`,
+      aspectRatio: natW && natH ? `${natW} / ${natH}` : undefined,
+    };
+    biggerAttachmentStyle = {
+      width: '100vw',
+      maxWidth,
+      backgroundColor: 'transparent',
+    };
+  }
+
   return (
-    <Attachment outlined={outlined}>
+    <Attachment outlined={outlined} style={biggerAttachmentStyle}>
       <AttachmentHeader>
         <FileHeader
           body={filename}
@@ -261,14 +342,18 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
               url={mxcUrl}
               mimeType={safeMimeType}
               encInfo={content.file}
+              content={content}
             />
           }
         />
       </AttachmentHeader>
       <AttachmentBox
-        style={{
-          height: toRem(height < 48 ? 48 : height),
-        }}
+        ref={mediaRef}
+        style={
+          biggerBoxStyle ?? {
+            height: toRem(height < 48 ? 48 : height),
+          }
+        }
       >
         {renderVideoContent({
           body: content.body || 'Video',
@@ -280,6 +365,17 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
           spoilerReason: content[MATRIX_SPOILER_REASON_PROPERTY_NAME],
         })}
       </AttachmentBox>
+      {mediaButtons && includeVideo && (
+        <MediaActions
+          mEventId={mEventId}
+          content={content}
+          mxcUrl={mxcUrl}
+          mimeType={safeMimeType}
+          encInfo={content.file}
+          altText={content.body}
+          mediaRef={mediaRef}
+        />
+      )}
     </Attachment>
   );
 }
@@ -321,6 +417,7 @@ export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: 
               url={mxcUrl}
               mimeType={safeMimeType}
               encInfo={content.file}
+              content={content}
             />
           }
         />
@@ -341,6 +438,7 @@ export function MAudio({ content, renderAsFile, renderAudioContent, outlined }: 
 
 type RenderFileContentProps = {
   body: string;
+  content: IFileContent;
   info: IFileInfo & IThumbnailContent;
   mimeType: string;
   url: string;
@@ -350,8 +448,11 @@ type MFileProps = {
   content: IFileContent;
   renderFileContent: (props: RenderFileContentProps) => ReactNode;
   outlined?: boolean;
+  mEventId?: string;
 };
-export function MFile({ content, renderFileContent, outlined }: MFileProps) {
+export function MFile({ content, renderFileContent, outlined, mEventId }: MFileProps) {
+  const [mediaButtons] = useSetting(settingsAtom, 'enhMediaButtons');
+  const [includeFiles] = useSetting(settingsAtom, 'enhIncludeFiles');
   const fileInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
 
@@ -371,11 +472,22 @@ export function MFile({ content, renderFileContent, outlined }: MFileProps) {
         <AttachmentContent>
           {renderFileContent({
             body: content.filename ?? content.body ?? 'File',
+            content,
             info: fileInfo ?? {},
             mimeType: fileInfo?.mimetype ?? FALLBACK_MIMETYPE,
             url: mxcUrl,
             encInfo: content.file,
           })}
+          {mediaButtons && includeFiles && (
+            <MediaActions
+              mEventId={mEventId}
+              content={content}
+              mxcUrl={mxcUrl}
+              mimeType={fileInfo?.mimetype ?? FALLBACK_MIMETYPE}
+              encInfo={content.file}
+              altText={content.body}
+            />
+          )}
         </AttachmentContent>
       </AttachmentBox>
     </Attachment>
@@ -413,8 +525,15 @@ export function MLocation({ content }: MLocationProps) {
 type MStickerProps = {
   content: IImageContent;
   renderImageContent: (props: RenderImageContentProps) => ReactNode;
+  mEventId?: string;
 };
-export function MSticker({ content, renderImageContent }: MStickerProps) {
+export function MSticker({ content, renderImageContent, mEventId }: MStickerProps) {
+  const [mediaButtons] = useSetting(settingsAtom, 'enhMediaButtons');
+  const [includeStickers] = useSetting(settingsAtom, 'enhIncludeStickers');
+  const [expandStickers] = useSetting(settingsAtom, 'enhExpandStickers');
+  const [mediaMaxHeightVh] = useSetting(settingsAtom, 'enhMediaMaxHeightVh');
+  const [upscaleSmallMedia] = useSetting(settingsAtom, 'enhUpscaleSmallMedia');
+  const mediaRef = useRef<HTMLDivElement>(null);
   const imgInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
   if (typeof mxcUrl !== 'string') {
@@ -422,20 +541,50 @@ export function MSticker({ content, renderImageContent }: MStickerProps) {
   }
   const height = scaleYDimension(imgInfo?.w || 152, 152, imgInfo?.h || 152);
 
+  const natW = imgInfo?.w;
+  const natH = imgInfo?.h;
+  const expandStyle: CSSProperties | undefined =
+    expandStickers && natW && natH
+      ? {
+          width: 'auto',
+          height: 'auto',
+          maxWidth: upscaleSmallMedia ? '100%' : `min(100%, ${natW}px)`,
+          maxHeight: `${mediaMaxHeightVh}vh`,
+          aspectRatio: `${natW} / ${natH}`,
+        }
+      : undefined;
+
   return (
-    <AttachmentBox
-      style={{
-        height: toRem(height < 48 ? 48 : height),
-        width: toRem(152),
-      }}
-    >
-      {renderImageContent({
-        body: content.body || 'Sticker',
-        info: imgInfo,
-        mimeType: imgInfo?.mimetype,
-        url: mxcUrl,
-        encInfo: content.file,
-      })}
-    </AttachmentBox>
+    <Box direction="Column" alignItems="Start">
+      <AttachmentBox
+        ref={mediaRef}
+        style={
+          expandStyle ?? {
+            height: toRem(height < 48 ? 48 : height),
+            width: toRem(152),
+          }
+        }
+      >
+        {renderImageContent({
+          body: content.body || 'Sticker',
+          info: imgInfo,
+          mimeType: imgInfo?.mimetype,
+          url: mxcUrl,
+          encInfo: content.file,
+        })}
+      </AttachmentBox>
+      {mediaButtons && includeStickers && (
+        <MediaActions
+          mEventId={mEventId}
+          content={content}
+          mxcUrl={mxcUrl}
+          mimeType={imgInfo?.mimetype ?? FALLBACK_MIMETYPE}
+          encInfo={content.file}
+          altText={content.body}
+          mediaRef={mediaRef}
+          copyable
+        />
+      )}
+    </Box>
   );
 }

@@ -23,6 +23,8 @@ import * as css from './styles.css';
 import { ReactionViewer } from '../reaction-viewer';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { useSetting } from '../../../state/hooks/settings';
+import { settingsAtom } from '../../../state/settings';
 
 export type ReactionsProps = {
   room: Room;
@@ -35,6 +37,7 @@ export const Reactions = as<'div', ReactionsProps>(
   ({ className, room, relations, mEventId, canSendReaction, onReactionToggle, ...props }, ref) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
+    const [reactionEmojiSize] = useSetting(settingsAtom, 'enhReactionEmojiSize');
     const [viewer, setViewer] = useState<boolean | string>(false);
     const myUserId = mx.getUserId();
     const reactions = useRelations(
@@ -89,6 +92,11 @@ export const Reactions = as<'div', ReactionsProps>(
                   onContextMenu={handleViewReaction}
                   aria-disabled={!canSendReaction}
                   useAuthentication={useAuthentication}
+                  emojiSize={
+                    reactionEmojiSize > 0
+                      ? Math.min(64, Math.max(8, reactionEmojiSize))
+                      : undefined
+                  }
                 />
               )}
             </TooltipProvider>
