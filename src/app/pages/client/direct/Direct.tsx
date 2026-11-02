@@ -39,7 +39,13 @@ import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { useDirectRooms } from './useDirectRooms';
-import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
+import {
+  PageNav,
+  PageNavContent,
+  PageNavHeader,
+  SidebarResizeHandle,
+  useSidebarResize,
+} from '../../../components/page';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { useRoomsUnread } from '../../../state/hooks/unread';
 import { markAsRead } from '../../../utils/notifications';
@@ -202,8 +208,11 @@ export function Direct() {
     closedCategories.has(categoryId)
   );
 
+  const sidebar = useSidebarResize();
+
   return (
-    <PageNav>
+    <PageNav style={sidebar.navStyle} data-enh-sidebar-compact={sidebar.compact || undefined}>
+      <SidebarResizeHandle />
       <DirectHeader />
       {noRoomToDisplay ? (
         <DirectEmpty />
