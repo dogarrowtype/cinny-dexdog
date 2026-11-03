@@ -5,6 +5,7 @@ import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import CinnySVG from '../../../../../public/res/svg/cinny.svg';
+import packageJson from '../../../../../package.json';
 import { clearCacheAndReload } from '../../../../client/initMatrix';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 
@@ -46,7 +47,7 @@ export function About({ requestClose }: AboutProps) {
                   <Box direction="Column" gap="100">
                     <Box gap="100" alignItems="End">
                       <Text size="H3">Cinny</Text>
-                      <Text size="T200">v4.12.8-dexdog.2</Text>
+                      <Text size="T200">{`v${packageJson.version}`}</Text>
                     </Box>
                     <Text>Yet another matrix client.</Text>
                   </Box>

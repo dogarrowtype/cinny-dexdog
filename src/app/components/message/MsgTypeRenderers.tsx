@@ -221,12 +221,17 @@ export function MImage({ content, renderImageContent, outlined, mEventId }: MIma
   if (biggerMedia) {
     let maxWidth = '100%';
     if (!upscaleSmallMedia && natW) maxWidth = `min(100%, ${natW}px)`;
+    // height:auto relies on aspectRatio to give the box a definite size,
+    // because everything inside it is absolutely positioned. When the event
+    // carries no w/h info the box would collapse to zero, so fall back to
+    // the stock fixed height.
+    const hasAspect = typeof natW === 'number' && typeof natH === 'number';
     biggerBoxStyle = {
       width: 'auto',
-      height: 'auto',
+      height: hasAspect ? 'auto' : toRem(height < 48 ? 48 : height),
       maxWidth: '100%',
       maxHeight: `${mediaMaxHeightVh}vh`,
-      aspectRatio: natW && natH ? `${natW} / ${natH}` : undefined,
+      aspectRatio: hasAspect ? `${natW} / ${natH}` : undefined,
     };
     biggerAttachmentStyle = {
       width: '100vw',
@@ -318,12 +323,15 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined, mE
   if (biggerMedia) {
     let maxWidth = '100%';
     if (!upscaleSmallMedia && natW) maxWidth = `min(100%, ${natW}px)`;
+    // Same collapse guard as MImage: without w/h info there is no
+    // aspectRatio, and height:auto would collapse the box to zero.
+    const hasAspect = typeof natW === 'number' && typeof natH === 'number';
     biggerBoxStyle = {
       width: 'auto',
-      height: 'auto',
+      height: hasAspect ? 'auto' : toRem(height < 48 ? 48 : height),
       maxWidth: '100%',
       maxHeight: `${mediaMaxHeightVh}vh`,
-      aspectRatio: natW && natH ? `${natW} / ${natH}` : undefined,
+      aspectRatio: hasAspect ? `${natW} / ${natH}` : undefined,
     };
     biggerAttachmentStyle = {
       width: '100vw',

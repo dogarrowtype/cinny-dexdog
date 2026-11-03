@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import { Page, PageHero, PageHeroSection } from '../../components/page';
 import CinnySVG from '../../../../public/res/svg/cinny.svg';
+import packageJson from '../../../../package.json';
 
 export function WelcomePage() {
   return (
@@ -24,7 +25,7 @@ export function WelcomePage() {
                   target="_blank"
                   rel="noreferrer noopener"
                 >
-                  v4.12.8
+                  {`v${packageJson.version}`}
                 </a>
               </span>
             }
